@@ -1,0 +1,12 @@
+[Unit]
+Description=Boen Vk Bot
+After=multi-user.target
+
+[Service]
+WorkingDirectory=/home/hitchsavan/boenbot/
+Type=idle
+ExecStart=/usr/bin/python3.7 boen.py
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
