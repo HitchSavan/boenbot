@@ -9,13 +9,14 @@ from pathlib import Path
 from skimage.measure import compare_ssim
 import numpy as np
 
+boenkill = 0
 with open('boen_settings.json') as json_file:
     BoenSettings = json.load(json_file)
 
 def check(files, diffBase):
 	i = 0
-	for pic in files:
-		''' #progressbar
+	for notBase in files:
+		'''
 		i += 1
 		bar_len = 40
 		total = len(files)
@@ -25,32 +26,29 @@ def check(files, diffBase):
 		sys.stdout.write('[%s] %s%s\r' % (bar, percents, '%'))
 		sys.stdout.flush()
 		'''
-		if 'diff.npz' not in pic or pic == 'photos.txt' or pic == f'{photo[-15:-4]}diff.npz':
+		if type(notBase) != np.ndarray:
 			continue
-		data = np.load(f'{cache_path}/{pic}')
-		notBase = data['arr_0']
-		data.close()
 		(diffRes, diff) = compare_ssim(diffBase, notBase, full=True)
 		if diffRes > 0.7:
-			print(f'БРАТАН WARNING: SSIM: {diffRes} with {pic[:-8]}')
+			print('БРАТАН WARNING: SSIM: '+str(diffRes)+' with '+photo[-15:-4])
 		if diffRes > 0.95:
 			if dumping == 0:
 				#send_message(peer_id, random.choice(boenMessage), reply)
 				upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)['upload_url']
-				response = vk._vk.http.post(upload_url, files={'photo': open(f'{cache_path}/{photo[-15:]}', 'rb')})
+				response = vk._vk.http.post(upload_url, files={'photo': open(cache_path+'/'+photo[-15:], 'rb')})
 				attcm = vk.photos.saveMessagesPhoto(**response.json())
 				vk.messages.send(
 					peer_id=peer_id,
-					message=(f'{random.choice(boenMessage)} @id{from_id}'),
-					attachment=f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}',
+					message=(random.choice(boenMessage) + ' @id' + str(from_id)),
+					attachment='photo'+str(attcm[0]['owner_id'])+'_'+str(attcm[0]['id']),
 					reply_to=event.obj['id'],
 					random_id=get_random_id(),
 				)
 				#cv2.imshow('image', notBase)
 				#cv2.waitKey(5000)
 				#cv2.destroyAllWindows()
-			os.remove(f'{cache_path}/{photo[-15:-4]}diff.npz')
-			print(f'Dublicate removed with SSIM: {diffRes} with {pic[:-8]}')
+			print('Dublicate removed with SSIM: '+str(diffRes)+' with '+photo[-15:-4])
+			boenkill = 1
 			break
 	return 228
 
@@ -62,17 +60,18 @@ def send_message(peer_id, message, reply):
 		random_id=get_random_id(),
 	)
 
-def walker(cache_path, photo, dumping, boenMessage):
-	base = cv2.imread(f'{cache_path}/{photo}')
+def walker(cache_path, photo, boenkill):
+	base = cv2.imread(cache_path+'/'+photo)
 	base = cv2.resize(base, (320, 320), interpolation=cv2.INTER_AREA)
 	diffBase = cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)
-	np.savez_compressed(f'{cache_path}/{photo[-15:-4]}diff', diffBase)
-	files = os.listdir(path=cache_path)
+	data = np.load(cache_path+'/big_pic.npz', allow_pickle=True)
+	files = data['arr_0']
+	data.close()
 	executor = concurrent.futures.ThreadPoolExecutor()
-	f1 = executor.submit(check, files[0:499], diffBase)
-	f2 = executor.submit(check, files[500:999], diffBase)
-	f3 = executor.submit(check, files[1000:1499], diffBase)
-	f4 = executor.submit(check, files[1500:], diffBase)
+	f1 = executor.submit(check, files[0:999], diffBase)
+	f2 = executor.submit(check, files[1000:1999], diffBase)
+	f3 = executor.submit(check, files[2000:2999], diffBase)
+	f4 = executor.submit(check, files[3000:], diffBase)
 	while not f1.done():
 		time.sleep(1)
 	while not f2.done():
@@ -81,7 +80,11 @@ def walker(cache_path, photo, dumping, boenMessage):
 		time.sleep(1)
 	while not f4.done():
 		time.sleep(1)
-	os.remove(f'{cache_path}/{photo}')
+	os.remove(cache_path+'/'+photo)
+	if not boenkill:
+		files = np.append(files, [diffBase, [photo]])
+		np.savez_compressed(cache_path+'/big_pic', files)
+		boenkill = 0
 	if(len(files) > 2000):
 		os.remove(str(sorted(Path(cache_path).iterdir(), key=os.path.getmtime)[0]))
 
@@ -110,14 +113,14 @@ while True:
 			if event.type == VkBotEventType.MESSAGE_NEW:
 				from_id = event.obj['from_id']  # id пользователя, который отправил сообщение
 				peer_id = event.obj['peer_id']  # peer_id беседы или ЛС, откуда пришло сообщение
-				cache_path = f'{os.getcwd()}/casch/{peer_id}'
+				cache_path = os.getcwd()+'/casch/'+str(peer_id)
 				reply = event.obj['id']
 				#wall: event.obj['attachments'][i]['type'] == 'wall'
 				#photo on wall: event.obj['attachments'][i]['wall']['attachments'][j]['type'] == 'photo'
 				#event.obj['attachments'][i]['wall']['attachments'][j]['photo']['sizes'][3]['url']
 
 				message = event.obj['text'].lower() # Для регистронезависимости
-				print(f'__________________________________________________________________\n{time.ctime(time.time())[4:-5]}| Got message: "{message}" From: {from_id} In {peer_id}\n——————————————————————————————————————————————————————————————————')
+				print('__________________________________________________________________\n'+time.ctime(time.time())[4:-5]+'| Got message: "'+message+'" From: '+str(from_id)+' In '+str(peer_id)+'\n——————————————————————————————————————————————————————————————————')
 				if message == 'ответь':
 					vk.messages.send(
 						peer_id=peer_id,
@@ -153,19 +156,19 @@ while True:
 						psi = '0.3'
 					if 'пиздец' in message:
 						psi = '2.0'
-					art = requests.get(f'https://thisanimedoesnotexist.ai/results/psi-{psi}/seed{random.randint(10000, 99999)}.png', stream=True, headers={"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 GTB7.1 (.NET CLR 3.5.30729)", "Referer": "http://example.com"}, timeout=5)
-					if not os.path.exists(f'{cache_path}/buf'):
-						os.mkdir(f'{cache_path}/buf')
-					art_file = open(f'{cache_path}/buf/random_art.png', 'wb')
+					art = requests.get('https://thisanimedoesnotexist.ai/results/psi-' + psi + '/seed'+str(random.randint(10000, 99999))+'.png', stream=True, headers={"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 GTB7.1 (.NET CLR 3.5.30729)", "Referer": "http://example.com"}, timeout=5)
+					if not os.path.exists(cache_path + '/buf'):
+						os.mkdir(cache_path + '/buf')
+					art_file = open(cache_path+'/buf/random_art.png', 'wb')
 					art_file.write(art.content)
 					art_file.close()
 					upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)['upload_url']
-					response = vk._vk.http.post(upload_url, files={'photo': open(f'{cache_path}/buf/random_art.png', 'rb')})
+					response = vk._vk.http.post(upload_url, files={'photo': open(cache_path+'/buf/random_art.png', 'rb')})
 					attcm = vk.photos.saveMessagesPhoto(**response.json())
 					vk.messages.send(
 						peer_id=peer_id,
 						message=('Во'),
-						attachment=f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}',
+						attachment='photo'+str(attcm[0]['owner_id'])+'_'+str(attcm[0]['id']),
 						reply_to=event.obj['id'],
 						random_id=get_random_id(),
 					)
@@ -173,112 +176,114 @@ while True:
 				for i in range(len(event.obj['attachments'])):
 					if event.obj['attachments'][i]['type'] == 'photo':
 						photo = event.obj['attachments'][i]['photo']['sizes'][3]['url']
-						print(f'\nGet picture: {photo}\nfrom {peer_id}')
+						print('\nGet picture: '+photo+'\nfrom '+str(peer_id))
 						img = requests.get(photo, verify=False)
-						photo = f'{photo[:photo.find(".jpg")]}.jpg'
+						photo = photo[:photo.find('.jpg')] + '.jpg'
 						if not os.path.exists(cache_path):
 							os.mkdir(cache_path)
-							f = open(f'{cache_path}/photos.txt', 'w')
+							f = open(cache_path+'/photos.txt', 'w')
 							f.close()
-						if f'{photo[-15:-4]}diff.npz' in os.listdir(path=cache_path):
+							cumout = np.zeros((1, 1, 1))
+							np.savez_compressed(cache_path+'/big_pic', cumout)
+						if photo[-15:-4]+'diff.npz' in os.listdir(path=cache_path):
 							print('This photo is existed')
 							send_message(peer_id, random.choice(fwdMessage), None)
 							continue
-						img_file = open(f'{cache_path}/{photo[-15:]}', 'wb')
+						img_file = open(cache_path+'/'+photo[-15:], 'wb')
 						img_file.write(img.content)
 						img_file.close()
-						walker(cache_path, photo[-15:], dumping, boenMessage)
-						f = open(f'{cache_path}/photos.txt', 'a+')
-						f.write(f'{photo}\n')
+						walker(cache_path, photo[-15:], boenkill)
+						f = open(cache_path+'/photos.txt', 'a+')
+						f.write(photo+'\n')
 						f.close()
 					elif event.obj['attachments'][i]['type'] == 'wall':
 						if 'copy_history' in event.obj['attachments'][i]['wall']:
 							for j in range(len(event.obj['attachments'][i]['wall']['copy_history'][0]['attachments'])):
 								if event.obj['attachments'][i]['wall']['copy_history'][0]['attachments'][j]['type'] == 'photo':
 									photo = event.obj['attachments'][i]['wall']['copy_history'][0]['attachments'][j]['photo']['sizes'][3]['url']
-									print(f'\nGet picture: {photo}\nfrom {peer_id}')
+									print('\nGet picture: '+photo+'\nfrom '+str(peer_id))
 									img = requests.get(photo, verify=False)
-									photo = f'{photo[:photo.find(".jpg")]}.jpg'
+									photo = photo[:photo.find('.jpg')] + '.jpg'
 									if not os.path.exists(cache_path):
 										os.mkdir(cache_path)
-										f = open(f'{cache_path}/photos.txt', 'w')
+										f = open(cache_path+'/photos.txt', 'w')
 										f.close()
-									if f'{photo[-15:-4]}diff.npz' in os.listdir(path=cache_path):
+									if photo[-15:-4]+'diff.npz' in os.listdir(path=cache_path):
 										print('This photo is existed')
 										send_message(peer_id, random.choice(fwdMessage), None)
 										continue
-									img_file = open(f'{cache_path}/{photo[-15:]}', 'wb')
+									img_file = open(cache_path+'/'+photo[-15:], 'wb')
 									img_file.write(img.content)
 									img_file.close()
-									walker(cache_path, photo[-15:], dumping, boenMessage)
-									f = open(f'{cache_path}/photos.txt', 'a+')
-									f.write(f'{photo}\n')
+									walker(cache_path, photo[-15:], boenkill)
+									f = open(cache_path+'/photos.txt', 'a+')
+									f.write(photo+'\n')
 									f.close()
 							continue
 						for j in range(len(event.obj['attachments'][i]['wall']['attachments'])):
 							if event.obj['attachments'][i]['wall']['attachments'][j]['type'] == 'photo':
 								photo = event.obj['attachments'][i]['wall']['attachments'][j]['photo']['sizes'][3]['url']
-								print(f'\nGet picture: {photo}\nfrom {peer_id}')
+								print('\nGet picture: '+photo+'\nfrom '+str(peer_id))
 								img = requests.get(photo, verify=False)
-								photo = f'{photo[:photo.find(".jpg")]}.jpg'
+								photo = photo[:photo.find('.jpg')] + '.jpg'
 								if not os.path.exists(cache_path):
 									os.mkdir(cache_path)
-									f = open(f'{cache_path}/photos.txt', 'w')
+									f = open(cache_path+'/photos.txt', 'w')
 									f.close()
-								if f'{photo[-15:-4]}diff.npz' in os.listdir(path=cache_path):
+								if photo[-15:-4]+'diff.npz' in os.listdir(path=cache_path):
 									print('This photo is existed')
 									send_message(peer_id, random.choice(fwdMessage), None)
 									continue
-								img_file = open(f'{cache_path}/{photo[-15:]}', 'wb')
+								img_file = open(cache_path+'/'+photo[-15:], 'wb')
 								img_file.write(img.content)
 								img_file.close()
-								walker(cache_path, photo[-15:], dumping, boenMessage)
-								f = open(f'{cache_path}/photos.txt', 'a+')
-								f.write(f'{photo}\n')
+								walker(cache_path, photo[-15:], boenkill)
+								f = open(cache_path+'/photos.txt', 'a+')
+								f.write(photo+'\n')
 								f.close()
 				for i in range(len(event.obj['fwd_messages'])):
 					for j in range(len(event.obj['fwd_messages'][i]['attachments'])):
 						if event.obj['fwd_messages'][i]['attachments'][j]['type'] == 'photo':
 							photo = event.obj['fwd_messages'][i]['attachments'][j]['photo']['sizes'][3]['url']
-							print(f'\nGet fwd picture: {photo}\nfrom {peer_id}')
+							print('\nGet fwd picture: '+photo+'\nfrom '+str(peer_id))
 							img = requests.get(photo, verify=False)
-							photo = f'{photo[:photo.find(".jpg")]}.jpg'
+							photo = photo[:photo.find('.jpg')] + '.jpg'
 							if not os.path.exists(cache_path):
 								os.mkdir(cache_path)
-								f = open(f'{cache_path}/photos.txt', 'w')
+								f = open(cache_path+'/photos.txt', 'w')
 								f.close()
-							if f'{photo[-15:-4]}diff.npz' in os.listdir(path=cache_path):
+							if photo[-15:-4]+'diff.npz' in os.listdir(path=cache_path):
 								print('This photo is existed')
 								send_message(peer_id, 'СУКА\nА..\nПростите, ложная тревога', None)
 								break
-							img_file = open(f'{cache_path}/{photo[-15:]}', 'wb')
+							img_file = open(cache_path+'/'+photo[-15:], 'wb')
 							img_file.write(img.content)
 							img_file.close()
-							walker(cache_path, photo[-15:], dumping, boenMessage)
-							f = open(f'{cache_path}/photos.txt', 'a+')
-							f.write(f'{photo}\n')
+							walker(cache_path, photo[-15:], boenkill)
+							f = open(cache_path+'/photos.txt', 'a+')
+							f.write(photo+'\n')
 							f.close()
 						elif event.obj['fwd_messages'][i]['attachments'][j]['type'] == 'wall':
 							for k in range(len(event.obj['fwd_messages'][i]['attachments'][j]['wall']['attachments'])):
 								if event.obj['fwd_messages'][i]['attachments'][j]['wall']['attachments'][k]['type'] == 'photo':
 									photo = event.obj['fwd_messages'][i]['attachments'][j]['wall']['attachments'][k]['photo']['sizes'][3]['url']
-									print(f'\nGet picture: {photo}\nfrom {peer_id}')
+									print('\nGet picture: '+photo+'\nfrom '+str(peer_id))
 									img = requests.get(photo, verify=False)
-									photo = f'{photo[:photo.find(".jpg")]}.jpg'
+									photo = photo[:photo.find('.jpg')] + '.jpg'
 									if not os.path.exists(cache_path):
 										os.mkdir(cache_path)
-										f = open(f'{cache_path}/photos.txt', 'w')
+										f = open(cache_path+'/photos.txt', 'w')
 										f.close()
-									if f'{photo[-15:-4]}diff.npz' in os.listdir(path=cache_path):
+									if photo[-15:-4]+'diff.npz' in os.listdir(path=cache_path):
 										print('This photo is existed')
 										send_message(peer_id, random.choice(fwdMessage), None)
 										continue
-									img_file = open(f'{cache_path}/{photo[-15:]}', 'wb')
+									img_file = open(cache_path+'/'+photo[-15:], 'wb')
 									img_file.write(img.content)
 									img_file.close()
-									walker(cache_path, photo[-15:], dumping, boenMessage)
-									f = open(f'{cache_path}/photos.txt', 'a+')
-									f.write(f'{photo}\n')
+									walker(cache_path, photo[-15:], boenkill)
+									f = open(cache_path+'/photos.txt', 'a+')
+									f.write(photo+'\n')
 									f.close()
 				if message == 'боен пока' or message == ',jty gjrf':
 					if from_id != 155523158:
@@ -291,18 +296,18 @@ while True:
 						send_message(peer_id, random.choice(accessDen), None)
 						continue
 					send_message(peer_id, 'Дампаю хуйню...', None)
-					dump_file = open(f'{cache_path}/photos.txt', 'r')
+					dump_file = open(cache_path+'/photos.txt', 'r')
 					for line in dump_file:
-						print(f'------------------------------------------\n{line}------------------------------------------')
+						print('------------------------------------------\n'+line+'------------------------------------------')
 						if line == '\n':
 							continue
 						img = requests.get(line, verify=False)
-						line = f'{line[:line.find(".jpg")]}.jpg'
-						img_file = open(f'{cache_path}/{line[-16:-1]}', 'wb')
+						line = line[:line.find('.jpg')] + '.jpg'
+						img_file = open(cache_path+'/'+line[-16:-1], 'wb')
 						img_file.write(img.content)
 						img_file.close()
 						dumping = 1
-						walker(cache_path, line[-16:-1], dumping, boenMessage)
+						walker(cache_path, line[-16:-1], boenkill)
 						dumping = 0
 					dump_file.close()
 					send_message(peer_id, 'Вроде всё перекачал', None)
@@ -311,18 +316,18 @@ while True:
 						send_message(peer_id, random.choice(accessDen), None)
 						continue
 					send_message(peer_id, 'Достаю вилку...', None)
-					dump_file = open(f'{cache_path}/photos.txt', 'r')
+					dump_file = open(cache_path+'/photos.txt', 'r')
 					for line in dump_file:
 						print(line)
 						if line == '\n':
 							continue
 						if line in dump_str:
 							send_message(peer_id, '*чик*', None)
-							print(f'removed {line}')
+							print('removed '+line)
 							continue
 						dump_str += line
 					dump_file.close()
-					dump_file = open(f'{cache_path}/photos.txt', 'w')
+					dump_file = open(cache_path+'/photos.txt', 'w')
 					dump_file.write(dump_str)
 					dump_file.close()
 					dump_str = ''
