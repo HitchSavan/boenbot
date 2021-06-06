@@ -9,8 +9,13 @@ from pathlib import Path
 from skimage.measure import compare_ssim
 import numpy as np
 
-with open('boen_settings.json') as json_file:
+with open('boen_settings.json', encoding='utf-8') as json_file:
     BoenSettings = json.load(json_file)
+
+vkBotSession = VkApi(token=BoenSettings['accessToken'])
+longPoll = VkBotLongPoll(vkBotSession, BoenSettings['groupId'])
+vk = vkBotSession.get_api()
+random.seed()
 
 def check(files, diffBase, photo):
 	i = 0
@@ -91,35 +96,38 @@ def get_photo(raw_photo):
 		f.close()
 	if f'{photo[:-4]}diff.npz' in os.listdir(path=cache_path):
 		print('This photo is existed')
-		if len(event.obj['fwd_messages']) != 0:
-			send_message(peer_id, 'СУКА\nА..\nПростите, ложная тревога', None, None)
-			return 0
 		
+		fwdflag = True
+		for member in vk.messages.getConversationMembers(peer_id=peer_id)['items']:
+			if len(event.obj['fwd_messages']) != 0 and event.obj['fwd_messages'][0]['from_id'] == member['member_id']: fwdflag = False
+			else: continue
+		if not fwdflag: return 0
+
 		img_file = open(f'{cache_path}/{photo}', 'wb')
 		img_file.write(img.content)
 		img_file.close()
 		base = cv2.imread(f'{cache_path}/{photo}')
 		base = cv2.resize(base, (320, 320), interpolation=cv2.INTER_AREA)
 		diffBase = cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)
-		np.savez_compressed(f'{cache_path}/{photo[-15:-4]}difftest', diffBase)
+		np.savez_compressed(f'{cache_path}/{photo[:-4]}difftest', diffBase)
 		
 
-		data = np.load(f'{cache_path}/{photo}diff.npz')
+		data = np.load(f'{cache_path}/{photo[:-4]}diff.npz')
 		notBase = data['arr_0']
 		data.close()
 		(diffRes, diff) = compare_ssim(diffBase, notBase, full=True)
 		if diffRes > 0.7:
-			print(f'БРАТАН WARNING: SSIM: {diffRes} with {photo}')
+			print(f'FWD БРАТАН WARNING: SSIM: {diffRes} with {photo}')
 		if diffRes > 0.95:
 			if BoenSettings['dumping'] == 0:
 				upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)['upload_url']
 				response = vk._vk.http.post(upload_url, files={'photo': open(f'{cache_path}/{photo}', 'rb')})
 				attcm = vk.photos.saveMessagesPhoto(**response.json())
 				send_message(peer_id, f'{random.choice(BoenSettings["fwdMessage"])} @id{from_id}', event.obj['id'], f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}')
-			os.remove(f'{cache_path}/{photo[-15:-4]}difftest.npz')
+			os.remove(f'{cache_path}/{photo[:-4]}difftest.npz')
 			print(f'Dublicate removed with SSIM: {diffRes} with {photo}')
 		else:
-			os.rename(f'{cache_path}/{photo[-15:-4]}difftest.npz', f'{cache_path}/{photo[-16:-5]}{random.randint(0, 9)}diff.npz')
+			os.rename(f'{cache_path}/{photo[:-4]}difftest.npz', f'{cache_path}/{photo[:-5]}{random.randint(0, 9)}diff.npz')
 		return 0
 	img_file = open(f'{cache_path}/{photo}', 'wb')
 	img_file.write(img.content)
@@ -133,10 +141,6 @@ if not sys.warnoptions:
 	import warnings
 	warnings.simplefilter('ignore')
 
-vkBotSession = VkApi(token=BoenSettings['accessToken'])
-longPoll = VkBotLongPoll(vkBotSession, BoenSettings['groupId'])
-vk = vkBotSession.get_api()
-random.seed()
 
 while True:
 	try:
@@ -147,14 +151,18 @@ while True:
 				cache_path = f'{os.getcwd()}/casch/{peer_id}'
 				reply = event.obj['id']
 				
+				#print(event.obj)
+
 				#wall: event.obj['attachments'][i]['type'] == 'wall'
 				#photo on wall: event.obj['attachments'][i]['wall']['attachments'][j]['type'] == 'photo'
 				#event.obj['attachments'][i]['wall']['attachments'][j]['photo']['sizes'][3]['url']
 
 				message = event.obj['text'].lower() # Для регистронезависимости
 				print(f'__________________________________________________________________\n{time.ctime(time.time())[4:-5]}| Got message: "{message}" From: {from_id} In {peer_id}\n——————————————————————————————————————————————————————————————————')
+				
 				if message == 'ответь':
 					send_message(peer_id, 'Отвечаю', event.obj['id'], None)
+				
 				if message == 'боен молчи' or message == 'боен молчать' or message == ',jty vjkxb' or message == ',jty vjkxfnm':
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
@@ -162,6 +170,7 @@ while True:
 					send_message(peer_id, 'Как скажешь.....', None, None)
 					BoenSettings['mute'] = 1
 					continue
+				
 				if message == 'боен прости' or message == 'боен привет' or message == ',jty ghjcnb' or message == ',jty ghbdtn':
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
@@ -169,8 +178,10 @@ while True:
 					send_message(peer_id, random.choice(['Привет', 'Я скучал', 'Ага...', 'Я тут']), None, None)
 					BoenSettings['mute'] = 0
 					continue
+				
 				if BoenSettings['mute'] == 1 or from_id == 387761721:
 					continue
+				
 				if 'боен арт' in message:
 					send_message(peer_id, 'Ща, погодь...', event.obj['id'], None)
 					psi = '1.0'
@@ -189,6 +200,7 @@ while True:
 					attcm = vk.photos.saveMessagesPhoto(**response.json())
 					send_message(peer_id, 'Во', event.obj['id'], f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}')
 					continue
+				
 				for i in range(len(event.obj['attachments'])):
 					if event.obj['attachments'][i]['type'] == 'photo':
 						photo = event.obj['attachments'][i]['photo']['sizes'][3]['url']
@@ -207,8 +219,13 @@ while True:
 								photo = event.obj['attachments'][i]['wall']['attachments'][j]['photo']['sizes'][3]['url']
 								print(f'\nGet picture: {photo}\nfrom {peer_id}')
 								get_photo(photo)
+				
 				for i in range(len(event.obj['fwd_messages'])):
-					'''
+					fwdflag = True
+					for member in vk.messages.getConversationMembers(peer_id=peer_id)['items']:
+						if event.obj['fwd_messages'][0]['from_id'] == member['member_id']: fwdflag = False
+						else: continue
+					if not fwdflag: continue
 					for j in range(len(event.obj['fwd_messages'][i]['attachments'])):
 						if event.obj['fwd_messages'][i]['attachments'][j]['type'] == 'photo':
 							photo = event.obj['fwd_messages'][i]['attachments'][j]['photo']['sizes'][3]['url']
@@ -220,13 +237,14 @@ while True:
 									photo = event.obj['fwd_messages'][i]['attachments'][j]['wall']['attachments'][k]['photo']['sizes'][3]['url']
 									print(f'\nGet picture: {photo}\nfrom {peer_id}')
 									get_photo(photo)
-					'''
+				
 				if message == 'боен пока' or message == ',jty gjrf':
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
 						continue
 					send_message(peer_id, 'ок.....', None, None)
 					sys.exit()
+				
 				elif message == 'боен хуярь' or message == ',jty [ezhm': #удаление дубликатов пикч в папке путем перекачивания из файла
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
@@ -247,6 +265,7 @@ while True:
 						BoenSettings['dumping'] = 0
 					dump_file.close()
 					send_message(peer_id, 'Вроде всё перекачал', None, None)
+				
 				elif message == ',jty xbcnb' or message == 'боен чисти': #удаление дубликатов в текстовом файле
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
@@ -268,6 +287,7 @@ while True:
 					dump_file.close()
 					BoenSettings['dump_str'] = ''
 					send_message(peer_id, 'Вроде все дубликаты ссылок удалил', None, None)
+				
 				elif message == ',jty htcnfhn' or message == 'боен рестарт' or message == ',jty htctn' or message == 'боен ресет': #рестарт
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
@@ -275,6 +295,7 @@ while True:
 					send_message(peer_id, 'Выхожу в окно', None, None)
 					#subprocess.Popen(['python.exe', 'restart.py'])
 					sys.exit()
+				
 				elif 'баян' in message or 'боян' in message or 'боен' in message :
 					send_message(peer_id, random.choice(['Это аккордеон', 'Не', 'Не не', 'Не не не', 'Да не', 'Обязательно', 'Я тута', 'Звал?', 'Кнешн', 'Нахуй']), reply, None)
 				print('|||||||||||||||||||||||||||||||||||||||||||||||||||||End of message|||||||||||||||||||||||||||||||||||||||||||||||||||||')
