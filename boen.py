@@ -4,6 +4,8 @@
 from vk_api import VkApi
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.utils import get_random_id
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
 import sys, requests, os, cv2, time, random, subprocess, concurrent.futures, json
 from pathlib import Path
 from skimage.measure import compare_ssim
@@ -16,6 +18,9 @@ vkBotSession = VkApi(token=BoenSettings['accessToken'])
 longPoll = VkBotLongPoll(vkBotSession, BoenSettings['groupId'])
 vk = vkBotSession.get_api()
 random.seed()
+
+opts = webdriver.FirefoxOptions()
+opts.add_argument("--headless")
 
 def check(files, diffBase, photo):
 	i = 0
@@ -137,6 +142,60 @@ def get_photo(raw_photo):
 	f.write(f'{raw_photo}\n')
 	f.close()
 
+def search_image(image_url_to_find):
+	send_message(peer_id, 'Ща, погодь', None, None)
+	find_message = ''
+	
+	driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver', firefox_options=opts) #для убунту
+	#driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver.exe') #для винды
+	driver.implicitly_wait(10)
+
+	driver.get('https://yandex.ru/images/')
+
+	search_button_element = driver.find_element_by_xpath('/html/body/header/div/div[2]/div[1]/form/div[1]/span/span/div[2]/button')
+	search_button_element.click()
+
+	search_element = driver.find_element_by_name('cbir-url')
+	search_element.send_keys(image_url_to_find)
+	search_element.send_keys(Keys.RETURN)
+
+	alt_res_element = driver.find_element_by_xpath('/html/body/div[6]/div[1]/div[1]/div/div[1]/div[1]/div[2]/div[2]/div[1]/ul/li[1]/div/div[1]/a')
+	alt_res_url = alt_res_element.get_attribute('href')
+
+	try:
+		res_element = driver.find_element_by_partial_link_text('Твиттер')
+		print(res_element.text)
+		print(res_element.get_attribute('href'))
+		
+		find_message += f'{res_element.text}: {res_element.get_attribute("href")}\nИли это (первая ссылка): {alt_res_element.get_attribute("href")}'
+		send_message(peer_id, find_message, event.obj['id'], None)
+	except:
+		find_message += f'В твиттере нема...'
+		try:
+			similar_images = driver.find_elements_by_class_name('cbir-similar__thumb')
+			random.choice(similar_images[:5]).click()
+
+			res_element = driver.find_element_by_class_name('MMImage-Origin')
+			res_img_url = res_element.get_attribute('src')
+
+			art = requests.get(res_img_url, stream=True, headers={"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 GTB7.1 (.NET CLR 3.5.30729)", "Referer": "http://example.com"}, timeout=5)
+			if not os.path.exists(f'{cache_path}/buf'):
+				os.mkdir(f'{cache_path}/buf')
+			art_file = open(f'{cache_path}/buf/random_art.png', 'wb')
+			art_file.write(art.content)
+			art_file.close()
+			upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)['upload_url']
+			response = vk._vk.http.post(upload_url, files={'photo': open(f'{cache_path}/buf/random_art.png', 'rb')})
+			attcm = vk.photos.saveMessagesPhoto(**response.json())
+			print(find_message)
+			find_message += f'\nНо вот что-то похожее\nНу или мб это: {alt_res_url}'
+			print(find_message)
+			send_message(peer_id, find_message, event.obj['id'], f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}')
+		except:
+			pass
+		
+	driver.quit()
+
 if not sys.warnoptions:
 	import warnings
 	warnings.simplefilter('ignore')
@@ -163,7 +222,7 @@ while True:
 				if message == 'ответь':
 					send_message(peer_id, 'Отвечаю', event.obj['id'], None)
 				
-				if message == 'боен молчи' or message == 'боен молчать' or message == ',jty vjkxb' or message == ',jty vjkxfnm':
+				if message in ['боен молчи', 'боен молчать', ',jty vjkxb', ',jty vjkxfnm']:
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
 						continue
@@ -171,18 +230,18 @@ while True:
 					BoenSettings['mute'] = 1
 					continue
 				
-				if message == 'боен прости' or message == 'боен привет' or message == ',jty ghjcnb' or message == ',jty ghbdtn':
+				if message in ['боен прости', 'боен привет']:
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
 						continue
 					send_message(peer_id, random.choice(['Привет', 'Я скучал', 'Ага...', 'Я тут']), None, None)
 					BoenSettings['mute'] = 0
 					continue
-				
+
 				if BoenSettings['mute'] == 1 or from_id == 387761721:
 					continue
 				
-				if 'боен арт' in message:
+				if message == 'боен арт' :
 					send_message(peer_id, 'Ща, погодь...', event.obj['id'], None)
 					psi = '1.0'
 					if 'софт' in message:
@@ -201,23 +260,38 @@ while True:
 					send_message(peer_id, 'Во', event.obj['id'], f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}')
 					continue
 				
+				if 'reply_message' in event.obj:
+					if message in ['поиск', 'сурс']:
+						if event.obj['reply_message']['attachments'][0]['type'] == 'photo':
+							photo = event.obj['reply_message']['attachments'][0]['photo']['sizes'][3]['url']
+							search_image(photo)
+
 				for i in range(len(event.obj['attachments'])):
 					if event.obj['attachments'][i]['type'] == 'photo':
 						photo = event.obj['attachments'][i]['photo']['sizes'][3]['url']
 						print(f'\nGet picture: {photo}\nfrom {peer_id}')
+						if message in ['поиск', 'сурс']:
+							search_image(photo)
+							continue
 						get_photo(photo)
-					elif event.obj['attachments'][i]['type'] == 'wall':
+					if event.obj['attachments'][i]['type'] == 'wall':
 						if 'copy_history' in event.obj['attachments'][i]['wall']:
 							for j in range(len(event.obj['attachments'][i]['wall']['copy_history'][0]['attachments'])):
 								if event.obj['attachments'][i]['wall']['copy_history'][0]['attachments'][j]['type'] == 'photo':
 									photo = event.obj['attachments'][i]['wall']['copy_history'][0]['attachments'][j]['photo']['sizes'][3]['url']
 									print(f'\nGet picture: {photo}\nfrom {peer_id}')
+									if message in ['поиск', 'сурс']:
+										search_image(photo)
+										continue
 									get_photo(photo)
 							continue
 						for j in range(len(event.obj['attachments'][i]['wall']['attachments'])):
 							if event.obj['attachments'][i]['wall']['attachments'][j]['type'] == 'photo':
 								photo = event.obj['attachments'][i]['wall']['attachments'][j]['photo']['sizes'][3]['url']
 								print(f'\nGet picture: {photo}\nfrom {peer_id}')
+								if message in ['поиск', 'сурс']:
+									search_image(photo)
+									continue
 								get_photo(photo)
 				
 				for i in range(len(event.obj['fwd_messages'])):
@@ -230,22 +304,28 @@ while True:
 						if event.obj['fwd_messages'][i]['attachments'][j]['type'] == 'photo':
 							photo = event.obj['fwd_messages'][i]['attachments'][j]['photo']['sizes'][3]['url']
 							print(f'\nGet fwd picture: {photo}\nfrom {peer_id}')
+							if message in ['поиск', 'сурс']:
+								search_image(photo)
+								continue
 							get_photo(photo)
 						elif event.obj['fwd_messages'][i]['attachments'][j]['type'] == 'wall':
 							for k in range(len(event.obj['fwd_messages'][i]['attachments'][j]['wall']['attachments'])):
 								if event.obj['fwd_messages'][i]['attachments'][j]['wall']['attachments'][k]['type'] == 'photo':
 									photo = event.obj['fwd_messages'][i]['attachments'][j]['wall']['attachments'][k]['photo']['sizes'][3]['url']
 									print(f'\nGet picture: {photo}\nfrom {peer_id}')
+									if message in ['поиск', 'сурс']:
+										search_image(photo)
+										continue
 									get_photo(photo)
 				
-				if message == 'боен пока' or message == ',jty gjrf':
+				if message == 'боен пока':
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
 						continue
 					send_message(peer_id, 'ок.....', None, None)
 					sys.exit()
 				
-				elif message == 'боен хуярь' or message == ',jty [ezhm': #удаление дубликатов пикч в папке путем перекачивания из файла
+				elif message == 'боен хуярь': #удаление дубликатов пикч в папке путем перекачивания из файла
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
 						continue
@@ -266,7 +346,7 @@ while True:
 					dump_file.close()
 					send_message(peer_id, 'Вроде всё перекачал', None, None)
 				
-				elif message == ',jty xbcnb' or message == 'боен чисти': #удаление дубликатов в текстовом файле
+				elif message == 'боен чисти': #удаление дубликатов в текстовом файле
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
 						continue
@@ -288,7 +368,7 @@ while True:
 					BoenSettings['dump_str'] = ''
 					send_message(peer_id, 'Вроде все дубликаты ссылок удалил', None, None)
 				
-				elif message == ',jty htcnfhn' or message == 'боен рестарт' or message == ',jty htctn' or message == 'боен ресет': #рестарт
+				elif message == 'боен рестарт' or message == 'боен ресет': #рестарт
 					if from_id != 155523158:
 						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
 						continue
