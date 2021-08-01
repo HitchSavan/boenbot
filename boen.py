@@ -1,12 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import sys, requests, os, cv2, time, random, subprocess, concurrent.futures, json, platform
 from vk_api import VkApi
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.utils import get_random_id
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-import sys, requests, os, cv2, time, random, subprocess, concurrent.futures, json
 from pathlib import Path
 from skimage.measure import compare_ssim
 import numpy as np
@@ -146,8 +146,11 @@ def search_image(image_url_to_find):
 	send_message(peer_id, 'Ща, погодь', None, None)
 	find_message = ''
 	
-	driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver', firefox_options=opts) #для убунту
-	#driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver.exe') #для винды
+	if platform.system() == 'Windows':
+		driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver.exe') #для винды
+	else:
+		driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver', firefox_options=opts) #для убунту
+
 	driver.implicitly_wait(10)
 
 	driver.get('https://yandex.ru/images/')
@@ -159,7 +162,7 @@ def search_image(image_url_to_find):
 	search_element.send_keys(image_url_to_find)
 	search_element.send_keys(Keys.RETURN)
 
-	alt_res_element = driver.find_element_by_xpath('/html/body/div[6]/div[1]/div[1]/div/div[1]/div[1]/div[2]/div[2]/div[1]/ul/li[1]/div/div[1]/a')
+	alt_res_element = driver.find_element_by_xpath('//a[@class="Link Thumb Thumb_hover_fade Thumb_border Thumb_rounded Thumb_type_inline"]')
 	alt_res_url = alt_res_element.get_attribute('href')
 
 	try:
@@ -167,7 +170,7 @@ def search_image(image_url_to_find):
 		print(res_element.text)
 		print(res_element.get_attribute('href'))
 		
-		find_message += f'{res_element.text}: {res_element.get_attribute("href")}\nИли это (первая ссылка): {alt_res_element.get_attribute("href")}'
+		find_message += f'Попытка в твиттер: {res_element.text}: {res_element.get_attribute("href")}\nИли это (первая ссылка): {alt_res_url}'
 		send_message(peer_id, find_message, event.obj['id'], None)
 	except:
 		find_message += f'В твиттере нема...'
