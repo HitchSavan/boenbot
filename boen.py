@@ -6,6 +6,7 @@ from vk_api import VkApi
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.utils import get_random_id
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.keys import Keys
 from pathlib import Path
 from skimage.measure import compare_ssim
@@ -21,6 +22,7 @@ random.seed()
 
 opts = webdriver.FirefoxOptions()
 opts.add_argument("--headless")
+opts.add_argument("--disable-gpu")
 
 def check(files, diffBase, photo):
 	i = 0
@@ -57,7 +59,7 @@ def check(files, diffBase, photo):
 			break
 	return 228
 
-def send_message(peer_id, message, reply, attach):
+def send_message(peer_id, message, reply = None, attach = None):
 	vk.messages.send(
 		peer_id=peer_id,
 		message=message,
@@ -143,9 +145,10 @@ def get_photo(raw_photo):
 	f.close()
 
 def search_image(image_url_to_find):
-	send_message(peer_id, 'Ща, погодь', None, None)
+	send_message(peer_id, 'Ща, погодь')
 	find_message = ''
 	
+	print(f'Running on {platform.system()}')
 	if platform.system() == 'Windows':
 		driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver.exe') #для винды
 	else:
@@ -155,48 +158,54 @@ def search_image(image_url_to_find):
 
 	driver.get('https://yandex.ru/images/')
 
-	search_button_element = driver.find_element_by_xpath('/html/body/header/div/div[2]/div[1]/form/div[1]/span/span/div[2]/button')
-	search_button_element.click()
-
-	search_element = driver.find_element_by_name('cbir-url')
-	search_element.send_keys(image_url_to_find)
-	search_element.send_keys(Keys.RETURN)
-
-	alt_res_element = driver.find_element_by_xpath('//a[@class="Link Thumb Thumb_hover_fade Thumb_border Thumb_rounded Thumb_type_inline"]')
-	alt_res_url = alt_res_element.get_attribute('href')
-
 	try:
-		res_element = driver.find_element_by_partial_link_text('Твиттер')
-		print(res_element.text)
-		print(res_element.get_attribute('href'))
-		
-		find_message += f'Попытка в твиттер: {res_element.text}: {res_element.get_attribute("href")}\nИли это (первая ссылка): {alt_res_url}'
-		send_message(peer_id, find_message, event.obj['id'], None)
-	except:
-		find_message += f'В твиттере нема...'
+		search_button_element = driver.find_element_by_xpath('/html/body/header/div/div[2]/div[1]/form/div[1]/span/span/div[2]/button')
+		search_button_element.click()
+		print('Finded searchfield...')
+		search_element = driver.find_element_by_class_name('Textinput-Control')
+		search_element.send_keys(image_url_to_find)
+		search_element.send_keys(Keys.RETURN)
+		print('Searching...')
+
+		alt_res_element = driver.find_element_by_xpath('//a[@class="Link Thumb Thumb_hover_fade Thumb_border Thumb_rounded Thumb_type_inline"]')
+		alt_res_url = alt_res_element.get_attribute('href')
+	
+
 		try:
-			similar_images = driver.find_elements_by_class_name('cbir-similar__thumb')
-			random.choice(similar_images[:5]).click()
+			print('Trying to find Twitter...')
+			res_element = driver.find_element_by_partial_link_text('Твиттер')
+			print(res_element.text)
+			print(res_element.get_attribute('href'))
 
-			res_element = driver.find_element_by_class_name('MMImage-Origin')
-			res_img_url = res_element.get_attribute('src')
+			find_message += f'Попытка в твиттер: {res_element.text}: {res_element.get_attribute("href")}\nИли это (первая ссылка): {alt_res_url}'
+			send_message(peer_id, find_message, event.obj['id'])
+		except NoSuchElementException:
+			print('Failed to find Twitter')
+			find_message += f'В твиттере нема...'
+			try:
+				similar_images = driver.find_elements_by_class_name('cbir-similar__thumb')
+				random.choice(similar_images[:5]).click()
 
-			art = requests.get(res_img_url, stream=True, headers={"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 GTB7.1 (.NET CLR 3.5.30729)", "Referer": "http://example.com"}, timeout=5)
-			if not os.path.exists(f'{cache_path}/buf'):
-				os.mkdir(f'{cache_path}/buf')
-			art_file = open(f'{cache_path}/buf/random_art.png', 'wb')
-			art_file.write(art.content)
-			art_file.close()
-			upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)['upload_url']
-			response = vk._vk.http.post(upload_url, files={'photo': open(f'{cache_path}/buf/random_art.png', 'rb')})
-			attcm = vk.photos.saveMessagesPhoto(**response.json())
-			print(find_message)
-			find_message += f'\nНо вот что-то похожее\nНу или мб это: {alt_res_url}'
-			print(find_message)
-			send_message(peer_id, find_message, event.obj['id'], f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}')
-		except:
-			pass
-		
+				res_element = driver.find_element_by_class_name('MMImage-Origin')
+				res_img_url = res_element.get_attribute('src')
+
+				art = requests.get(res_img_url, stream=True, headers={"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 GTB7.1 (.NET CLR 3.5.30729)", "Referer": "http://example.com"}, timeout=5)
+				if not os.path.exists(f'{cache_path}/buf'):
+					os.mkdir(f'{cache_path}/buf')
+				art_file = open(f'{cache_path}/buf/random_art.png', 'wb')
+				art_file.write(art.content)
+				art_file.close()
+				upload_url = vk.photos.getMessagesUploadServer(peer_id=peer_id)['upload_url']
+				response = vk._vk.http.post(upload_url, files={'photo': open(f'{cache_path}/buf/random_art.png', 'rb')})
+				attcm = vk.photos.saveMessagesPhoto(**response.json())
+				find_message += f'\nНо вот что-то похожее\nНу или мб это: {alt_res_url}'
+				print(find_message)
+				send_message(peer_id, find_message, event.obj['id'], f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}')
+			except:
+				print('SEARCH FAILED')
+				pass
+	except NoSuchElementException:
+		send_message(peer_id, 'Яндексы опять что-то намутили....', event.obj['id'])	
 	driver.quit()
 
 if not sys.warnoptions:
@@ -223,21 +232,21 @@ while True:
 				print(f'__________________________________________________________________\n{time.ctime(time.time())[4:-5]}| Got message: "{message}" From: {from_id} In {peer_id}\n——————————————————————————————————————————————————————————————————')
 				
 				if message == 'ответь':
-					send_message(peer_id, 'Отвечаю', event.obj['id'], None)
+					send_message(peer_id, 'Отвечаю', event.obj['id'])
 				
 				if message in ['боен молчи', 'боен молчать', ',jty vjkxb', ',jty vjkxfnm']:
 					if from_id != 155523158:
-						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
+						send_message(peer_id, random.choice(BoenSettings['accessDen']))
 						continue
-					send_message(peer_id, 'Как скажешь.....', None, None)
+					send_message(peer_id, 'Как скажешь.....')
 					BoenSettings['mute'] = 1
 					continue
 				
 				if message in ['боен прости', 'боен привет']:
 					if from_id != 155523158:
-						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
+						send_message(peer_id, random.choice(BoenSettings['accessDen']))
 						continue
-					send_message(peer_id, random.choice(['Привет', 'Я скучал', 'Ага...', 'Я тут']), None, None)
+					send_message(peer_id, random.choice(['Привет', 'Я скучал', 'Ага...', 'Я тут']))
 					BoenSettings['mute'] = 0
 					continue
 
@@ -245,7 +254,7 @@ while True:
 					continue
 				
 				if message == 'боен арт' :
-					send_message(peer_id, 'Ща, погодь...', event.obj['id'], None)
+					send_message(peer_id, 'Ща, погодь...', event.obj['id'])
 					psi = '1.0'
 					if 'софт' in message:
 						psi = '0.3'
@@ -323,16 +332,16 @@ while True:
 				
 				if message == 'боен пока':
 					if from_id != 155523158:
-						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
+						send_message(peer_id, random.choice(BoenSettings['accessDen']))
 						continue
-					send_message(peer_id, 'ок.....', None, None)
+					send_message(peer_id, 'ок.....')
 					sys.exit()
 				
 				elif message == 'боен хуярь': #удаление дубликатов пикч в папке путем перекачивания из файла
 					if from_id != 155523158:
-						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
+						send_message(peer_id, random.choice(BoenSettings['accessDen']))
 						continue
-					send_message(peer_id, 'Дампаю хуйню...', None, None)
+					send_message(peer_id, 'Дампаю хуйню...')
 					dump_file = open(f'{cache_path}/photos.txt', 'r')
 					for line in dump_file:
 						print(f'------------------------------------------\n{line}------------------------------------------')
@@ -347,20 +356,20 @@ while True:
 						walker(cache_path, line[-16:-1])
 						BoenSettings['dumping'] = 0
 					dump_file.close()
-					send_message(peer_id, 'Вроде всё перекачал', None, None)
+					send_message(peer_id, 'Вроде всё перекачал')
 				
 				elif message == 'боен чисти': #удаление дубликатов в текстовом файле
 					if from_id != 155523158:
-						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
+						send_message(peer_id, random.choice(BoenSettings['accessDen']))
 						continue
-					send_message(peer_id, 'Достаю вилку...', None, None)
+					send_message(peer_id, 'Достаю вилку...')
 					dump_file = open(f'{cache_path}/photos.txt', 'r')
 					for line in dump_file:
 						print(line)
 						if line == '\n':
 							continue
 						if line in BoenSettings['dump_str']:
-							send_message(peer_id, '*чик*', None, None)
+							send_message(peer_id, '*чик*')
 							print(f'removed {line}')
 							continue
 						BoenSettings['dump_str'] += line
@@ -369,13 +378,13 @@ while True:
 					dump_file.write(BoenSettings['dump_str'])
 					dump_file.close()
 					BoenSettings['dump_str'] = ''
-					send_message(peer_id, 'Вроде все дубликаты ссылок удалил', None, None)
+					send_message(peer_id, 'Вроде все дубликаты ссылок удалил')
 				
 				elif message == 'боен рестарт' or message == 'боен ресет': #рестарт
 					if from_id != 155523158:
-						send_message(peer_id, random.choice(BoenSettings['accessDen']), None, None)
+						send_message(peer_id, random.choice(BoenSettings['accessDen']))
 						continue
-					send_message(peer_id, 'Выхожу в окно', None, None)
+					send_message(peer_id, 'Выхожу в окно')
 					#subprocess.Popen(['python.exe', 'restart.py'])
 					sys.exit()
 				
