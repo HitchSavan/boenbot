@@ -20,28 +20,28 @@ def search_image(image_url_to_find, boenBody):
     driver.get('https://yandex.ru/images/')
 
     try:
-        search_button_element = driver.find_element_by_xpath('/html/body/header/div/div[2]/div[1]/form/div[1]/span/span/div[2]/button')
+        search_button_element = driver.find_element('xpath', '/html/body/header/div/div[2]/div[1]/form/div[1]/span/span/button')
         search_button_element.click()
         search_button_element.click()
         print('Finded searchfield...')
         try:
-            search_element = driver.find_element_by_class_name('Textinput-Control')
+            search_element = driver.find_element('class name', 'Textinput-Control')
             search_element.send_keys(image_url_to_find)
             search_element.send_keys(Keys.RETURN)
         except:
-            search_element = driver.find_element_by_class_name('Textinput-Control')
+            search_element = driver.find_element('class name', 'Textinput-Control')
             search_button_element.click()
             search_element.send_keys(image_url_to_find)
             search_element.send_keys(Keys.RETURN)
         print('Searching...')
 
-        alt_res_element = driver.find_element_by_xpath('//a[@class="Link Thumb Thumb_hover_fade Thumb_border Thumb_rounded Thumb_type_inline"]')
+        alt_res_element = driver.find_element('xpath', '//div[@class="CbirSimilar-Thumb"]/a[1]')
         alt_res_url = alt_res_element.get_attribute('href')
         
 
         try:
             print('Trying to find Twitter...')
-            res_element = driver.find_element_by_partial_link_text('Твиттер')
+            res_element = driver.find_element('partial link text', 'Твиттер')
             print(res_element.text)
             print(res_element.get_attribute('href'))
 
@@ -51,11 +51,11 @@ def search_image(image_url_to_find, boenBody):
             print('Failed to find Twitter')
             find_message += f'В твиттере нема...'
             try:
-                similar_images = driver.find_elements_by_class_name('CbirSimilar-Thumb')
+                similar_images = driver.find_elements('class name', 'CbirSimilar-Thumb')
                 random.choice(similar_images[:5]).click()
                 print('Opened similar images')
 
-                res_element = driver.find_element_by_class_name('MMImage-Origin')
+                res_element = driver.find_element('class name', 'MMImage-Origin')
                 res_img_url = res_element.get_attribute('src')
                 print('Finded similar image')
 

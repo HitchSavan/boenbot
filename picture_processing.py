@@ -1,7 +1,7 @@
 import random, os, cv2, time, concurrent.futures, requests
 import numpy as np
 
-from skimage.measure import compare_ssim
+from skimage.metrics import structural_similarity as compare_ssim
 from pathlib import Path
 
 from utils import search_image
