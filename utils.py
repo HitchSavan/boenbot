@@ -15,7 +15,7 @@ def search_image(image_url_to_find, boenBody):
     if platform.system() == 'Windows':
         driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver.exe') #для винды
     else:
-        driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver', firefox_options=boenBody.opts) #для убунту
+        driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver', options=boenBody.opts) #для убунту
 
     driver.implicitly_wait(10)
 
