@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
 import numpy as np, os
 
 from numpy.core.defchararray import array

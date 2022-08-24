@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 import json, time, sys, subprocess, os, requests, random
 
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType

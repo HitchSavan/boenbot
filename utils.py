@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 import requests, os, random, platform
 
 from selenium.common.exceptions import NoSuchElementException

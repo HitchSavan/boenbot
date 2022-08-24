@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 import random, os, cv2, time, concurrent.futures, requests
 import numpy as np
 
