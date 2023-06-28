@@ -4,8 +4,9 @@ After=multi-user.target
 
 [Service]
 WorkingDirectory=/home/hitchsavan/boenbot/
+User=hitchsavan
 Type=idle
-ExecStart=/usr/bin/python3.7 boen.py
+ExecStart=/usr/bin/python3.8 boen.py
 StartLimitBurst=5
 
 [Install]

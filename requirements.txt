@@ -1,0 +1,5 @@
+vk-api
+requests
+selenium
+opencv-python
+numpy

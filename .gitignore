@@ -1,0 +1,8 @@
+boen_settings.json
+geckodriver.log
+.gitattributes
+.vscode/
+casch/
+__pycache__/
+.env
+.venv
