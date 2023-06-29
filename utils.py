@@ -13,9 +13,9 @@ def search_image(image_url_to_find, boenBody):
     
     print(f'Running on {platform.system()}')
     if platform.system() == 'Windows':
-        driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver.exe') #для винды
+        driver = webdriver.Firefox(executable_path=f'{os.getcwd()}\\geckodriver.exe') #для винды
     else:
-        driver = webdriver.Firefox(executable_path=f'{os.getcwd()}/geckodriver', options=boenBody.opts) #для убунту
+        driver = webdriver.Firefox(executable_path=f'{os.getcwd()}\\geckodriver', options=boenBody.opts) #для убунту
 
     driver.implicitly_wait(10)
 
@@ -62,13 +62,13 @@ def search_image(image_url_to_find, boenBody):
                 print('Finded similar image')
 
                 art = requests.get(res_img_url, stream=True, headers={"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 GTB7.1 (.NET CLR 3.5.30729)", "Referer": "http://example.com"}, timeout=5)
-                if not os.path.exists(f'{boenBody.cache_path}/buf'):
-                    os.mkdir(f'{boenBody.cache_path}/buf')
-                art_file = open(f'{boenBody.cache_path}/buf/random_art.png', 'wb')
+                if not os.path.exists(f'{boenBody.cache_path}\\buf'):
+                    os.makedirs(f'{boenBody.cache_path}\\buf')
+                art_file = open(f'{boenBody.cache_path}\\buf\\random_art.png', 'wb')
                 art_file.write(art.content)
                 art_file.close()
                 upload_url = boenBody.vk.photos.getMessagesUploadServer(peer_id=boenBody.peer_id)['upload_url']
-                response = boenBody.vk._vk.http.post(upload_url, files={'photo': open(f'{boenBody.cache_path}/buf/random_art.png', 'rb')})
+                response = boenBody.vk._vk.http.post(upload_url, files={'photo': open(f'{boenBody.cache_path}\\buf\\random_art.png', 'rb')})
                 attcm = boenBody.vk.photos.saveMessagesPhoto(**response.json())
                 find_message += f'\nНо вот что-то похожее\nНу или мб это: {alt_res_url}'
                 print(find_message)
@@ -87,13 +87,13 @@ def random_art(psi, boenBody):
         headers={"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 GTB7.1 (.NET CLR 3.5.30729)",
             "Referer": "http://example.com"},
         timeout=5)
-    if not os.path.exists(f'{boenBody.cache_path}/buf'):
-        os.mkdir(f'{boenBody.cache_path}/buf')
-    art_file = open(f'{boenBody.cache_path}/buf/random_art.png', 'wb')
+    if not os.path.exists(f'{boenBody.cache_path}\\buf'):
+        os.makedirs(f'{boenBody.cache_path}\\buf')
+    art_file = open(f'{boenBody.cache_path}\\buf\\random_art.png', 'wb')
     art_file.write(art.content)
     art_file.close()
     upload_url = boenBody.vk.photos.getMessagesUploadServer(peer_id=boenBody.peer_id)['upload_url']
-    response = boenBody.vk._vk.http.post(upload_url, files={'photo': open(f'{boenBody.cache_path}/buf/random_art.png', 'rb')})
+    response = boenBody.vk._vk.http.post(upload_url, files={'photo': open(f'{boenBody.cache_path}\\buf\\random_art.png', 'rb')})
     attcm = boenBody.vk.photos.saveMessagesPhoto(**response.json())
     boenBody.send_message(boenBody.peer_id, 'Во', boenBody.event.obj['id'], f'photo{attcm[0]["owner_id"]}_{attcm[0]["id"]}')
 

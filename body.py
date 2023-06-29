@@ -42,7 +42,7 @@ class BoenBot:
                     if event.type == VkBotEventType.MESSAGE_NEW:
                         self.from_id = event.obj['from_id']  # id пользователя, который отправил сообщение
                         self.peer_id = event.obj['peer_id']  # peer_id беседы или ЛС, откуда пришло сообщение
-                        self.cache_path = f'{os.getcwd()}/casch/{self.peer_id}'
+                        self.cache_path = f'{os.getcwd()}\\casch\\{self.peer_id}'
                         self.reply = event.obj['id']
                         
                         #print(event.obj)
@@ -51,7 +51,7 @@ class BoenBot:
                         #photo on wall: event.obj['attachments'][i]['wall']['attachments'][j]['type'] == 'photo'
                         #event.obj['attachments'][i]['wall']['attachments'][j]['photo']['sizes'][3]['url']
 
-                        self.message = event.obj['text'].lower() # Для регистронезависимости
+                        self.message = event.obj['text'].lower()
                         print(f'__________________________________________________________________\n{time.ctime(time.time())[4:-5]}| Got message: "{self.message}" From: {self.from_id} In {self.peer_id}\n——————————————————————————————————————————————————————————————————')
                         
                         if self.message == 'ответь':
@@ -116,14 +116,14 @@ class BoenBot:
                                 self.send_message(self.peer_id, random.choice(self.BoenSettings['accessDen']))
                                 continue
                             self.send_message(self.peer_id, 'Дампаю хуйню...')
-                            dump_file = open(f'{self.cache_path}/photos.txt', 'r')
+                            dump_file = open(f'{self.cache_path}\\photos.txt', 'r')
                             for line in dump_file:
                                 print(f'------------------------------------------\n{line}------------------------------------------')
                                 if line == '\n':
                                     continue
                                 img = requests.get(line, verify=False)
                                 line = f'{line[:line.find(".jpg")]}.jpg'
-                                img_file = open(f'{self.cache_path}/{line[-16:-1]}', 'wb')
+                                img_file = open(f'{self.cache_path}\\{line[-16:-1]}', 'wb')
                                 img_file.write(img.content)
                                 img_file.close()
                                 self.BoenSettings['dumping'] = 1
@@ -137,7 +137,7 @@ class BoenBot:
                                 self.send_message(self.peer_id, random.choice(self.BoenSettings['accessDen']))
                                 continue
                             self.send_message(self.peer_id, 'Достаю вилку...')
-                            dump_file = open(f'{self.cache_path}/photos.txt', 'r')
+                            dump_file = open(f'{self.cache_path}\\photos.txt', 'r')
                             for line in dump_file:
                                 print(line)
                                 if line == '\n':
@@ -148,7 +148,7 @@ class BoenBot:
                                     continue
                                 self.BoenSettings['dump_str'] += line
                             dump_file.close()
-                            dump_file = open(f'{self.cache_path}/photos.txt', 'w')
+                            dump_file = open(f'{self.cache_path}\\photos.txt', 'w')
                             dump_file.write(self.BoenSettings['dump_str'])
                             dump_file.close()
                             self.BoenSettings['dump_str'] = ''

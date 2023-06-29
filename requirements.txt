@@ -3,3 +3,4 @@ requests
 selenium
 opencv-python
 numpy
+scikit-image
